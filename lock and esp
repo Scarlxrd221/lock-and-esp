@@ -5,21 +5,6 @@ local Camera = game.Workspace.CurrentCamera
 local rightMousePressed = false  -- Variable to track right mouse button state
 local lockedPlayer = nil  -- Variable to store currently locked player
 
--- Settings
-local Settings = {
-    Box_Color = Color3.fromRGB(255, 0, 0),
-    Box_Thickness = 1,
-    Tracers = false  -- Set to false to disable tracers
-}
-
-local Team_Check = {
-    TeamCheck = false,
-    Green = Color3.fromRGB(0, 255, 0),
-    Red = Color3.fromRGB(255, 0, 0)
-}
-
-local TeamColor = true  -- Toggle for team color visibility
-
 -- Function to create a vertical health bar for a player's character
 local function createHealthBar(character)
     local humanoid = character:WaitForChild("Humanoid")
@@ -29,7 +14,7 @@ local function createHealthBar(character)
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Adornee = rootPart
     billboardGui.Size = UDim2.new(0, 5, 0, 50)  -- Reduced width and height
-    billboardGui.StudsOffset = Vector3.new(2, 0, 0)  -- Adjust offset if needed
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0)  -- Adjust offset if needed
     billboardGui.AlwaysOnTop = true
 
     -- Create Background Frame
@@ -125,12 +110,12 @@ local function createOutline(player)
         -- Check if highlight already exists
         if not player.Character:FindFirstChild("Highlight") then
             -- Create Highlight
-            local highlight = Instance.new("Highlight")
+            local highlight = Instance.new("SelectionBox")
             highlight.Name = "Highlight"
-            highlight.FillTransparency = 1 -- Makes the inside transparent
-            highlight.OutlineTransparency = 0 -- Fully visible outline
-            highlight.OutlineColor = Color3.fromRGB(0, 0, 100) -- Dark blue outline
-            highlight.Parent = player.Character
+            highlight.LineThickness = 0.05 -- Adjust line thickness if needed
+            highlight.Color3 = Color3.fromRGB(0, 0, 100) -- Dark blue outline
+            highlight.Adornee = player.Character.HumanoidRootPart
+            highlight.Parent = player.Character.HumanoidRootPart
         end
     end
 end
@@ -166,7 +151,7 @@ local function toggleLock()
 
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local screenPos, onScreen = Camera:WorldToScreenPoint(player.Character.HumanoidRootPart.Position)
+                local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
                 if onScreen then
                     local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
                     if distance < shortestDistance then
@@ -206,7 +191,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- No need for smoothness, we update instantly
-game:GetService("RunService").Stepped:Connect(function()
+game:GetService("RunService").RenderStepped:Connect(function()
     if rightMousePressed and lockedPlayer then
         lockOntoPlayerNeck(lockedPlayer)
     end
