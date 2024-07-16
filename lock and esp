@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Camera = game.Workspace.CurrentCamera
 
-local altPressed = false  -- Variable to track Alt key state
+local rightMousePressed = false  -- Variable to track right mouse button state
 local lockedPlayer = nil  -- Variable to store currently locked player
 
 -- Function to create a vertical health bar for a player's character
@@ -144,9 +144,7 @@ end
 
 -- Function to toggle lock onto the closest player's neck
 local function toggleLock()
-    altPressed = not altPressed
-
-    if altPressed then
+    if rightMousePressed then
         -- Lock onto the closest visible player
         local closestPlayer = nil
         local shortestDistance = math.huge
@@ -174,16 +172,24 @@ local function toggleLock()
     end
 end
 
--- Listen for Alt key press to toggle locking onto player's neck
+-- Listen for right mouse button press and release to toggle locking onto player's neck
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.LeftAlt then
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = true
+        toggleLock()
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = false
         toggleLock()
     end
 end)
 
 -- No need for smoothness, we update instantly
 game:GetService("RunService").Stepped:Connect(function()
-    if altPressed and lockedPlayer then
+    if rightMousePressed and lockedPlayer then
         lockOntoPlayerNeck(lockedPlayer)
     end
 end)
