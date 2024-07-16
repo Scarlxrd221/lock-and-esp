@@ -1,4 +1,17 @@
--- Combined Script
+local Settings = {
+    Box_Color = Color3.fromRGB(255, 0, 0),
+    Box_Thickness = 1,
+    Tracers = false  -- Set to false to disable tracers
+}
+
+local Team_Check = {
+    TeamCheck = false,
+    Green = Color3.fromRGB(0, 255, 0),
+    Red = Color3.fromRGB(255, 0, 0)
+}
+
+local TeamColor = true  -- Toggle for team color visibility
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Camera = game.Workspace.CurrentCamera
@@ -6,26 +19,110 @@ local Camera = game.Workspace.CurrentCamera
 local rightMousePressed = false  -- Variable to track right mouse button state
 local lockedPlayer = nil  -- Variable to store currently locked player
 
--- Function to create a vertical health bar for a player's character
+local function NewQuad(thickness, color)
+    local quad = Drawing.new("Quad")
+    quad.Visible = false
+    quad.Color = color
+    quad.Filled = false
+    quad.Thickness = thickness
+    quad.Transparency = 1
+    return quad
+end
+
+local function Visibility(state, lib)
+    for _, x in pairs(lib) do
+        x.Visible = state
+    end
+end
+
+local function ESP(plr)
+    local library = {
+        black = NewQuad(Settings.Box_Thickness * 2, Color3.new(0, 0, 0)),
+        box = NewQuad(Settings.Box_Thickness, Settings.Box_Color)
+    }
+
+    local function Colorize(color)
+        for _, x in pairs(library) do
+            x.Color = color
+        end
+    end
+
+    local function Updater()
+        local connection
+        connection = game:GetService("RunService").RenderStepped:Connect(function()
+            if plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local HumPos, OnScreen = Camera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+                if OnScreen then
+                    local function CalculateBoxSize()
+                        local head = plr.Character:FindFirstChild("Head")
+                        local humanoidRootPart = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if head and humanoidRootPart then
+                            local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
+                            local rootPos, rootOnScreen = Camera:WorldToViewportPoint(humanoidRootPart.Position)
+                            if headOnScreen and rootOnScreen then
+                                local distanceY = (headPos.Y - rootPos.Y) * 2  -- Double the distance from root to head to encompass whole character
+                                local distanceX = distanceY / 2  -- Adjust X distance proportionally
+                                return Vector2.new(distanceX, distanceY)
+                            end
+                        end
+                        return Vector2.new(10, 30)  -- Default size if character or parts are not found
+                    end
+
+                    local boxSize = CalculateBoxSize()
+                    local function Size(item)
+                        item.PointA = Vector2.new(HumPos.X + boxSize.X, HumPos.Y - boxSize.Y)
+                        item.PointB = Vector2.new(HumPos.X - boxSize.X, HumPos.Y - boxSize.Y)
+                        item.PointC = Vector2.new(HumPos.X - boxSize.X, HumPos.Y + boxSize.Y)
+                        item.PointD = Vector2.new(HumPos.X + boxSize.X, HumPos.Y + boxSize.Y)
+                    end
+                    Size(library.box)
+                    Size(library.black)
+
+                    if Team_Check.TeamCheck then
+                        if plr.TeamColor == Players.LocalPlayer.TeamColor then
+                            Colorize(Team_Check.Green)
+                        else 
+                            Colorize(Team_Check.Red)
+                        end
+                    else 
+                        library.box.Color = Settings.Box_Color
+                    end
+
+                    if TeamColor then
+                        Colorize(plr.TeamColor.Color)
+                    end
+
+                    Visibility(true, library)
+                else 
+                    Visibility(false, library)
+                end
+            else 
+                Visibility(false, library)
+                if not Players:FindFirstChild(plr.Name) then
+                    connection:Disconnect()
+                end
+            end
+        end)
+    end
+    coroutine.wrap(Updater)()
+end
+
 local function createHealthBar(character)
     local humanoid = character:WaitForChild("Humanoid")
     local rootPart = character:WaitForChild("HumanoidRootPart")
 
-    -- Create BillboardGui
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Adornee = rootPart
-    billboardGui.Size = UDim2.new(0, 5, 0, 50)  -- Reduced width and height
-    billboardGui.StudsOffset = Vector3.new(2, 0, 0)  -- Adjust offset if needed
+    billboardGui.Size = UDim2.new(0, 5, 0, 50)
+    billboardGui.StudsOffset = Vector3.new(2, 0, 0)
     billboardGui.AlwaysOnTop = true
 
-    -- Create Background Frame
     local bgFrame = Instance.new("Frame")
     bgFrame.Size = UDim2.new(1, 0, 1, 0)
     bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     bgFrame.BorderSizePixel = 0
     bgFrame.Parent = billboardGui
 
-    -- Create Health Bar Frame
     local healthBar = Instance.new("Frame")
     healthBar.AnchorPoint = Vector2.new(0, 1)
     healthBar.Position = UDim2.new(0, 0, 1, 0)
@@ -36,10 +133,10 @@ local function createHealthBar(character)
 
     billboardGui.Parent = character
 
-    -- Update health bar size based on health
     local function updateHealthBar()
         local healthPercent = humanoid.Health / humanoid.MaxHealth
         healthBar.Size = UDim2.new(1, 0, healthPercent, 0)
+
         if healthPercent > 0.5 then
             healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
         elseif healthPercent > 0.25 then
@@ -50,51 +147,42 @@ local function createHealthBar(character)
     end
 
     humanoid.HealthChanged:Connect(updateHealthBar)
-    updateHealthBar() -- Initial update
+    updateHealthBar()
 end
 
--- Function to lock onto player's neck and update camera position
 local function lockOntoPlayerNeck(player)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local humanoidRootPart = player.Character.HumanoidRootPart
         local head = player.Character.Head
-
-        -- Calculate position slightly below the head to simulate locking onto the neck
         local neckPosition = head.Position - Vector3.new(0, head.Size.Y/2, 0)
-
-        -- Update camera position to look at the neck position instantly
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, neckPosition)
     end
 end
 
--- Function to create chams effect for a player's character
 local function createChams(player)
     if player.Character then
         local character = player.Character
 
-        -- Check if chams already exist, remove if so
         if character:FindFirstChild("ChamsSurfaceGui") then
             character.ChamSurfaceGui:Destroy()
         end
 
-        -- Create a SurfaceGui for the chams effect
         local surfaceGui = Instance.new("SurfaceGui")
         surfaceGui.Name = "ChamsSurfaceGui"
         surfaceGui.Adornee = character
-        surfaceGui.LightInfluence = 0  -- Ensures chams are not affected by lighting
+        surfaceGui.LightInfluence = 0
         surfaceGui.Parent = character
 
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 1, 0)
         frame.BorderSizePixel = 0
-        frame.BackgroundColor3 = Color3.fromRGB(0, 0, 255)  -- Dark blue chams color
-        frame.BackgroundTransparency = 0.5  -- Adjust transparency as needed
+        frame.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        frame.BackgroundTransparency = 0.5
         frame.ZIndex = 10
         frame.Parent = surfaceGui
     end
 end
 
--- Function to remove chams effect for a player's character
 local function removeChams(player)
     if player.Character then
         local character = player.Character
@@ -105,25 +193,20 @@ local function removeChams(player)
     end
 end
 
--- Function to create outline for a player's character
 local function createOutline(player)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        -- Check if highlight already exists
         if not player.Character:FindFirstChild("Highlight") then
-            -- Create Highlight
             local highlight = Instance.new("Highlight")
             highlight.Name = "Highlight"
-            highlight.FillTransparency = 1 -- Makes the inside transparent
-            highlight.OutlineTransparency = 0 -- Fully visible outline
-            highlight.OutlineColor = Color3.fromRGB(0, 0, 100) -- Dark blue outline
+            highlight.FillTransparency = 1
+            highlight.OutlineTransparency = 0
+            highlight.OutlineColor = Color3.fromRGB(0, 0, 100)
             highlight.Parent = player.Character
         end
     end
 end
 
--- Function called when a character is added
 local function onCharacterAdded(character)
-    -- Delay to ensure the character is fully loaded
     repeat wait() until character:FindFirstChild("HumanoidRootPart")
     createOutline(Players:GetPlayerFromCharacter(character))
     if lockedPlayer == Players:GetPlayerFromCharacter(character) then
@@ -132,7 +215,6 @@ local function onCharacterAdded(character)
     createHealthBar(character)
 end
 
--- Function called when a player is added
 local function onPlayerAdded(player)
     if player.Character then
         onCharacterAdded(player.Character)
@@ -142,13 +224,10 @@ local function onPlayerAdded(player)
     end)
 end
 
--- Function to toggle lock onto the closest player's neck
 local function toggleLock()
     if rightMousePressed then
-        -- Lock onto the closest visible player
         local closestPlayer = nil
         local shortestDistance = math.huge
-
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local distance = (player.Character.HumanoidRootPart.Position - Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
@@ -158,51 +237,9 @@ local function toggleLock()
                 end
             end
         end
-
-        -- Lock onto the closest player's neck
         if closestPlayer then
             lockedPlayer = closestPlayer
             lockOntoPlayerNeck(lockedPlayer)
             createChams(lockedPlayer)
         end
     else
-        -- Unlock
-        lockedPlayer = nil
-        removeChams(Players.LocalPlayer)
-    end
-end
-
--- Listen for right mouse button press and release to toggle locking onto player's neck
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        rightMousePressed = true
-        toggleLock()
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        rightMousePressed = false
-        toggleLock()
-    end
-end)
-
--- No need for smoothness, we update instantly
-game:GetService("RunService").Stepped:Connect(function()
-    if rightMousePressed and lockedPlayer then
-        lockOntoPlayerNeck(lockedPlayer)
-    end
-end)
-
--- Highlight all existing players initially
-for _, player in ipairs(Players:GetPlayers()) do
-    onPlayerAdded(player)
-end
-
--- Highlight players who join later
-Players.PlayerAdded:Connect(onPlayerAdded)
-
--- Cleanup chams when a player leaves
-Players.PlayerRemoving:Connect(function(player)
-    removeChams(player)
-end)
