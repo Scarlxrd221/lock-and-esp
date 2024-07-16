@@ -1,28 +1,31 @@
-make this scripts into a loadstring github 
-
-local loadstring = loadstring or load
-
--- Combined script
-local combinedScript = [[
--- Script 1: Create vertical health bar for players
+-- Combined Script
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Camera = game.Workspace.CurrentCamera
 
+local altPressed = false  -- Variable to track Alt key state
+local lockedPlayer = nil  -- Variable to store currently locked player
+
+-- Function to create a vertical health bar for a player's character
 local function createHealthBar(character)
     local humanoid = character:WaitForChild("Humanoid")
     local rootPart = character:WaitForChild("HumanoidRootPart")
 
+    -- Create BillboardGui
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Adornee = rootPart
-    billboardGui.Size = UDim2.new(0, 5, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(2, 0, 0)
+    billboardGui.Size = UDim2.new(0, 5, 0, 50)  -- Reduced width and height
+    billboardGui.StudsOffset = Vector3.new(2, 0, 0)  -- Adjust offset if needed
     billboardGui.AlwaysOnTop = true
 
+    -- Create Background Frame
     local bgFrame = Instance.new("Frame")
     bgFrame.Size = UDim2.new(1, 0, 1, 0)
     bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     bgFrame.BorderSizePixel = 0
     bgFrame.Parent = billboardGui
 
+    -- Create Health Bar Frame
     local healthBar = Instance.new("Frame")
     healthBar.AnchorPoint = Vector2.new(0, 1)
     healthBar.Position = UDim2.new(0, 0, 1, 0)
@@ -33,6 +36,7 @@ local function createHealthBar(character)
 
     billboardGui.Parent = character
 
+    -- Update health bar size based on health
     local function updateHealthBar()
         local healthPercent = humanoid.Health / humanoid.MaxHealth
         healthBar.Size = UDim2.new(1, 0, healthPercent, 0)
@@ -46,74 +50,51 @@ local function createHealthBar(character)
     end
 
     humanoid.HealthChanged:Connect(updateHealthBar)
-    updateHealthBar()
+    updateHealthBar() -- Initial update
 end
 
-local function onCharacterAdded(character)
-    createHealthBar(character)
-end
-
-local function onPlayerAdded(player)
-    player.CharacterAdded:Connect(onCharacterAdded)
-    if player.Character then
-        onCharacterAdded(player.Character)
-    end
-end
-
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= Players.LocalPlayer then
-        onPlayerAdded(player)
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    if player ~= Players.LocalPlayer then
-        onPlayerAdded(player)
-    end
-end)
-
--- Script 2: Chams, outline, and player locking functionality
-local UserInputService = game:GetService("UserInputService")
-local Camera = game.Workspace.CurrentCamera
-
-local altPressed = false
-local lockedPlayer = nil
-
+-- Function to lock onto player's neck and update camera position
 local function lockOntoPlayerNeck(player)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local humanoidRootPart = player.Character.HumanoidRootPart
         local head = player.Character.Head
 
+        -- Calculate position slightly below the head to simulate locking onto the neck
         local neckPosition = head.Position - Vector3.new(0, head.Size.Y/2, 0)
 
+        -- Update camera position to look at the neck position instantly
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, neckPosition)
     end
 end
 
+-- Function to create chams effect for a player's character
 local function createChams(player)
     if player.Character then
         local character = player.Character
 
+        -- Check if chams already exist, remove if so
         if character:FindFirstChild("ChamsSurfaceGui") then
             character.ChamSurfaceGui:Destroy()
         end
 
+        -- Create a SurfaceGui for the chams effect
         local surfaceGui = Instance.new("SurfaceGui")
         surfaceGui.Name = "ChamsSurfaceGui"
         surfaceGui.Adornee = character
-        surfaceGui.LightInfluence = 0
+        surfaceGui.LightInfluence = 0  -- Ensures chams are not affected by lighting
         surfaceGui.Parent = character
 
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 1, 0)
         frame.BorderSizePixel = 0
-        frame.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
-        frame.BackgroundTransparency = 0.5
+        frame.BackgroundColor3 = Color3.fromRGB(0, 0, 255)  -- Dark blue chams color
+        frame.BackgroundTransparency = 0.5  -- Adjust transparency as needed
         frame.ZIndex = 10
         frame.Parent = surfaceGui
     end
 end
 
+-- Function to remove chams effect for a player's character
 local function removeChams(player)
     if player.Character then
         local character = player.Character
@@ -124,27 +105,34 @@ local function removeChams(player)
     end
 end
 
+-- Function to create outline for a player's character
 local function createOutline(player)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Check if highlight already exists
         if not player.Character:FindFirstChild("Highlight") then
+            -- Create Highlight
             local highlight = Instance.new("Highlight")
             highlight.Name = "Highlight"
-            highlight.FillTransparency = 1
-            highlight.OutlineTransparency = 0
-            highlight.OutlineColor = Color3.fromRGB(0, 0, 100)
+            highlight.FillTransparency = 1 -- Makes the inside transparent
+            highlight.OutlineTransparency = 0 -- Fully visible outline
+            highlight.OutlineColor = Color3.fromRGB(0, 0, 100) -- Dark blue outline
             highlight.Parent = player.Character
         end
     end
 end
 
+-- Function called when a character is added
 local function onCharacterAdded(character)
+    -- Delay to ensure the character is fully loaded
     repeat wait() until character:FindFirstChild("HumanoidRootPart")
     createOutline(Players:GetPlayerFromCharacter(character))
     if lockedPlayer == Players:GetPlayerFromCharacter(character) then
         createChams(lockedPlayer)
     end
+    createHealthBar(character)
 end
 
+-- Function called when a player is added
 local function onPlayerAdded(player)
     if player.Character then
         onCharacterAdded(player.Character)
@@ -154,10 +142,12 @@ local function onPlayerAdded(player)
     end)
 end
 
+-- Function to toggle lock onto the closest player's neck
 local function toggleLock()
     altPressed = not altPressed
 
     if altPressed then
+        -- Lock onto the closest visible player
         local closestPlayer = nil
         local shortestDistance = math.huge
 
@@ -171,44 +161,42 @@ local function toggleLock()
             end
         end
 
+        -- Lock onto the closest player's neck
         if closestPlayer then
             lockedPlayer = closestPlayer
             lockOntoPlayerNeck(lockedPlayer)
             createChams(lockedPlayer)
         end
     else
+        -- Unlock
         lockedPlayer = nil
         removeChams(Players.LocalPlayer)
     end
 end
 
+-- Listen for Alt key press to toggle locking onto player's neck
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.LeftAlt then
         toggleLock()
     end
 end)
 
+-- No need for smoothness, we update instantly
 game:GetService("RunService").Stepped:Connect(function()
     if altPressed and lockedPlayer then
         lockOntoPlayerNeck(lockedPlayer)
     end
 end)
 
+-- Highlight all existing players initially
 for _, player in ipairs(Players:GetPlayers()) do
     onPlayerAdded(player)
 end
 
+-- Highlight players who join later
 Players.PlayerAdded:Connect(onPlayerAdded)
 
+-- Cleanup chams when a player leaves
 Players.PlayerRemoving:Connect(function(player)
     removeChams(player)
 end)
-]]
-
--- Load and execute the combined script
-local scriptFunction, error = loadstring(combinedScript)
-if scriptFunction then
-    scriptFunction()  -- Execute the combined script
-else
-    error("Error loading combined script: " .. error)
-end
