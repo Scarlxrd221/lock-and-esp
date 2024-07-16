@@ -1,0 +1,125 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
+local function createOutline(player)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Check if highlight already exists
+        if not player.Character:FindFirstChild("Highlight") then
+            -- Create Highlight
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "Highlight"
+            highlight.FillTransparency = 1 -- Makes the inside transparent
+            highlight.OutlineTransparency = 0 -- Fully visible outline
+
+            -- Set outline color based on team
+            local localPlayer = Players.LocalPlayer
+            if player.Team == localPlayer.Team then
+                highlight.OutlineColor = Color3.fromRGB(0, 0, 255) -- Blue for own team
+            else
+                highlight.OutlineColor = Color3.fromRGB(255, 165, 0) -- Orange for enemy team
+            end
+            
+            highlight.Parent = player.Character
+        end
+    end
+end
+
+local function onCharacterAdded(character)
+    -- Delay to ensure the character is fully loaded
+    repeat wait() until character:FindFirstChild("HumanoidRootPart")
+    createOutline(Players:GetPlayerFromCharacter(character))
+end
+
+local function onPlayerAdded(player)
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+    player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+-- Highlight all existing players
+for _, player in pairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+-- Highlight players who join later
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Variable to keep track of the current locked character
+local lockedCharacter = nil
+
+-- Function to calculate distance between two points
+local function distance(point1, point2)
+    return (point1 - point2).magnitude
+end
+
+-- Function to lock onto an opponent's neck and update the camera position
+local function lockOntoOpponentNeck(character)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local head = character:FindFirstChild("Head")
+
+        if head then
+            -- Calculate position slightly below the head to simulate locking onto the neck
+            local neckPosition = head.Position - Vector3.new(0, head.Size.Y / 2, 0)
+
+            -- Update camera position to look at the neck position instantly
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, neckPosition)
+        end
+    end
+end
+
+-- Function to check if a player is on the same team
+local function isTeammate(player)
+    local localPlayer = Players.LocalPlayer
+    return player.Team == localPlayer.Team
+end
+
+-- Function to find the closest opponent to the crosshair
+local function findClosestOpponentToCrosshair()
+    local closestOpponent = nil
+    local shortestDistance = math.huge
+
+    local mouse = Players.LocalPlayer:GetMouse()
+    local crosshairPosition = Vector2.new(mouse.X, mouse.Y)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            -- Check if the player is not on the same team
+            if not isTeammate(player) then
+                local character = player.Character
+                local head = character:FindFirstChild("Head")
+                if head then
+                    -- Calculate the screen position of the head
+                    local headPosition = Camera:WorldToScreenPoint(head.Position)
+                    local screenDistance = distance(Vector2.new(headPosition.X, headPosition.Y), crosshairPosition)
+                    if screenDistance < shortestDistance then
+                        shortestDistance = screenDistance
+                        closestOpponent = character
+                    end
+                end
+            end
+        end
+    end
+
+    return closestOpponent
+end
+
+-- Listen for right mouse button hold to toggle locking onto the closest opponent's neck
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            lockedCharacter = findClosestOpponentToCrosshair()
+        else
+            lockedCharacter = nil
+        end
+    end
+end)
+
+-- No need for smoothness, we update instantly
+game:GetService("RunService").Stepped:Connect(function()
+    if lockedCharacter then
+        lockOntoOpponentNeck(lockedCharacter)
+    end
+end)
