@@ -123,3 +123,4 @@ game:GetService("RunService").Stepped:Connect(function()
         lockOntoOpponentNeck(lockedCharacter)
     end
 end)
+ 
